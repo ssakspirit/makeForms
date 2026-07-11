@@ -1,15 +1,15 @@
 const apiKeyInput = document.getElementById("apiKey");
 const statusEl = document.getElementById("status");
 
-chrome.storage.local.get(["anthropicApiKey"], (result) => {
-  if (result.anthropicApiKey) {
-    apiKeyInput.value = result.anthropicApiKey;
+chrome.storage.local.get(["geminiApiKey"], (result) => {
+  if (result.geminiApiKey) {
+    apiKeyInput.value = result.geminiApiKey;
   }
 });
 
 document.getElementById("save").addEventListener("click", () => {
   const key = apiKeyInput.value.trim();
-  chrome.storage.local.set({ anthropicApiKey: key }, () => {
+  chrome.storage.local.set({ geminiApiKey: key }, () => {
     statusEl.textContent = "저장되었습니다.";
     statusEl.className = "ok";
     setTimeout(() => {

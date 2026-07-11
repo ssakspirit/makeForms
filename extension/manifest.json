@@ -7,7 +7,7 @@
   "host_permissions": [
     "https://forms.office.com/*",
     "https://forms.microsoft.com/*",
-    "https://api.anthropic.com/*"
+    "https://generativelanguage.googleapis.com/*"
   ],
   "background": {
     "service_worker": "background.js"

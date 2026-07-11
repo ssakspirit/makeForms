@@ -1,5 +1,5 @@
-const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-5";
+const MODEL = "gemini-2.5-flash";
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 function buildSystemPrompt() {
   return `당신은 Microsoft Forms용 퀴즈 문제를 만드는 도우미입니다.
@@ -47,25 +47,22 @@ async function generateQuestions(apiKey, payload) {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+      "x-goog-api-key": apiKey,
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 4096,
-      system: buildSystemPrompt(),
-      messages: [{ role: "user", content: buildUserPrompt(payload) }],
+      contents: [{ parts: [{ text: buildUserPrompt(payload) }] }],
+      systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
+      generationConfig: { responseMimeType: "application/json" },
     }),
   });
 
   if (!res.ok) {
     const errBody = await res.text();
-    throw new Error(`Anthropic API 오류 (${res.status}): ${errBody.slice(0, 200)}`);
+    throw new Error(`Gemini API 오류 (${res.status}): ${errBody.slice(0, 200)}`);
   }
 
   const data = await res.json();
-  const text = data.content && data.content[0] && data.content[0].text;
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error("API 응답에서 텍스트를 찾을 수 없습니다.");
 
   const questions = extractJson(text);
@@ -80,14 +77,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   (async () => {
     try {
-      const { anthropicApiKey } = await chrome.storage.local.get(["anthropicApiKey"]);
-      if (!anthropicApiKey) {
+      const { geminiApiKey } = await chrome.storage.local.get(["geminiApiKey"]);
+      if (!geminiApiKey) {
         sendResponse({ ok: false, error: "API 키가 설정되지 않았습니다." });
         return;
       }
 
       chrome.runtime.sendMessage({ type: "MAKEFORMS_LOG", text: "AI에게 문제 생성 요청 중..." });
-      const questions = await generateQuestions(anthropicApiKey, message.payload);
+      const questions = await generateQuestions(geminiApiKey, message.payload);
       chrome.runtime.sendMessage({
         type: "MAKEFORMS_LOG",
         text: `${questions.length}개 문제 생성 완료. 폼에 입력을 시작합니다...`,

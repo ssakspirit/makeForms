@@ -6,7 +6,7 @@ Microsoft Forms 편집 화면을 조작해 AI가 생성한 퀴즈 문제를 자�
 
 1. `forms.office.com`에서 편집 중인 폼을 엽니다.
 2. 확장 프로그램 팝업에서 주제/문제 개수/난이도를 입력하고 생성 버튼을 누릅니다.
-3. 백그라운드 서비스 워커가 Anthropic API로 문제(JSON)를 생성합니다.
+3. 백그라운드 서비스 워커가 Google Gemini API(`gemini-2.5-flash`)로 문제(JSON)를 생성합니다.
 4. 콘텐츠 스크립트가 현재 열려 있는 Forms 편집 화면의 DOM을 조작해 "새 질문 추가" → 제목/보기 입력 → (퀴즈 모드면) 정답 표시까지 자동으로 수행합니다.
 
 Microsoft Forms는 폼 문제를 프로그래밍 방식으로 생성하는 공개 API를 제공하지 않기 때문에(Graph API의 Forms 관련 엔드포인트는 관리자 설정 조회/변경용뿐), 브라우저 DOM 자동화 방식을 사용합니다.
@@ -15,8 +15,9 @@ Microsoft Forms는 폼 문제를 프로그래밍 방식으로 생성하는 공�
 
 1. `chrome://extensions` 접속 후 우측 상단 "개발자 모드" 켜기
 2. "압축해제된 확장 프로그램을 로드합니다" 클릭 → 이 저장소의 `extension/` 폴더 선택
-3. 확장 아이콘 우클릭 → 옵션(또는 팝업 하단 "API 키 설정") → Anthropic API 키 입력 후 저장
-   - 키는 `chrome.storage.local`에만 저장되고 외부로 전송되지 않습니다.
+3. 확장 아이콘 우클릭 → 옵션(또는 팝업 하단 "API 키 설정") → Gemini API 키 입력 후 저장
+   - [aistudio.google.com/apikey](https://aistudio.google.com/apikey)에서 키를 발급받을 수 있습니다.
+   - 키는 `chrome.storage.local`에만 저장되고, 문제 생성 요청 시 Google Gemini API로만 전송됩니다.
 
 ## 사용법
 
@@ -37,7 +38,7 @@ Microsoft Forms는 폼 문제를 프로그래밍 방식으로 생성하는 공�
 ```
 extension/
 ├── manifest.json   # MV3 매니페스트
-├── background.js   # Anthropic API 호출 및 오케스트레이션
+├── background.js   # Gemini API 호출 및 오케스트레이션
 ├── content.js       # forms.office.com DOM 자동화
 ├── popup.html/js    # 사용자 입력 UI
 └── options.html/js  # API 키 설정
