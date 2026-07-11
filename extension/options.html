@@ -29,7 +29,8 @@
   <div id="status"></div>
   <p class="hint">
     aistudio.google.com/apikey 에서 발급받은 Gemini API 키를 입력하세요.
-    키는 이 브라우저의 로컬 저장소(chrome.storage.local)에만 저장되며, 문제 생성을 위해 Google Gemini API로만 전송됩니다.
+    키는 chrome.storage.sync에 저장되어 로그인한 브라우저 계정을 통해 다른 기기와 자동 동기화됩니다.
+    문제 생성 요청 시에는 Google Gemini API로만 전송됩니다. 동기화 계정이 노출되면 이 키도 함께 노출될 수 있으니 신뢰할 수 있는 계정에서만 사용하세요.
   </p>
   <script src="options.js"></script>
 </body>

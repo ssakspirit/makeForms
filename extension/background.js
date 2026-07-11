@@ -77,7 +77,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   (async () => {
     try {
-      const { geminiApiKey } = await chrome.storage.local.get(["geminiApiKey"]);
+      const { geminiApiKey } = await chrome.storage.sync.get(["geminiApiKey"]);
       if (!geminiApiKey) {
         sendResponse({ ok: false, error: "API 키가 설정되지 않았습니다." });
         return;

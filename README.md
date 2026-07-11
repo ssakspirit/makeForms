@@ -17,7 +17,8 @@ Microsoft Forms는 폼 문제를 프로그래밍 방식으로 생성하는 공�
 2. "압축해제된 확장 프로그램을 로드합니다" 클릭 → 이 저장소의 `extension/` 폴더 선택
 3. 확장 아이콘 우클릭 → 옵션(또는 팝업 하단 "API 키 설정") → Gemini API 키 입력 후 저장
    - [aistudio.google.com/apikey](https://aistudio.google.com/apikey)에서 키를 발급받을 수 있습니다.
-   - 키는 `chrome.storage.local`에만 저장되고, 문제 생성 요청 시 Google Gemini API로만 전송됩니다.
+   - 키는 `chrome.storage.sync`에 저장되어 로그인한 브라우저 계정을 통해 다른 기기에 자동 동기화됩니다. 문제 생성 요청 시에는 Google Gemini API로만 전송됩니다.
+   - **주의**: sync 데이터는 브라우저 계정(Google/Microsoft 계정) 동기화 클라우드를 거치므로, 그 계정이 로그인된 다른 모든 기기와 계정 자체의 보안 수준에 노출 표면이 걸립니다. 공용/관리형 기기거나 계정 보안이 약하면 키가 함께 노출될 수 있습니다. 기기 간 동기화가 필요 없다면 `extension/*.js`의 `chrome.storage.sync`를 `chrome.storage.local`로 되돌려 기기별 저장으로 바꿀 수 있습니다.
 
 ## 사용법
 

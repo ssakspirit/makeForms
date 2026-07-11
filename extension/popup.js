@@ -30,7 +30,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 });
 
 async function init() {
-  const { geminiApiKey } = await chrome.storage.local.get(["geminiApiKey"]);
+  const { geminiApiKey } = await chrome.storage.sync.get(["geminiApiKey"]);
   if (!geminiApiKey) {
     showWarning('API 키가 설정되지 않았습니다. 아래 "API 키 설정"을 눌러 먼저 등록하세요.');
     generateBtn.disabled = true;

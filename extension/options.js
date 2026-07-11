@@ -1,7 +1,7 @@
 const apiKeyInput = document.getElementById("apiKey");
 const statusEl = document.getElementById("status");
 
-chrome.storage.local.get(["geminiApiKey"], (result) => {
+chrome.storage.sync.get(["geminiApiKey"], (result) => {
   if (result.geminiApiKey) {
     apiKeyInput.value = result.geminiApiKey;
   }
@@ -9,7 +9,7 @@ chrome.storage.local.get(["geminiApiKey"], (result) => {
 
 document.getElementById("save").addEventListener("click", () => {
   const key = apiKeyInput.value.trim();
-  chrome.storage.local.set({ geminiApiKey: key }, () => {
+  chrome.storage.sync.set({ geminiApiKey: key }, () => {
     statusEl.textContent = "저장되었습니다.";
     statusEl.className = "ok";
     setTimeout(() => {
