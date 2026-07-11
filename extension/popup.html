@@ -39,8 +39,12 @@
 
   <div id="warning"></div>
 
-  <label for="topic">주제</label>
+  <label for="topic">주제 (파일 첨부 시 지시사항, 선택)</label>
   <input type="text" id="topic" placeholder="예: 조선시대 역사, 자바스크립트 기초" />
+
+  <label for="sourceFile">파일에서 문제 생성 (선택, txt/md/pdf)</label>
+  <input type="file" id="sourceFile" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" />
+  <div id="fileHint" class="sub" style="margin-top:4px; display:none;"></div>
 
   <div class="row">
     <div>

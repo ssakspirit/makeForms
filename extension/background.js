@@ -1,4 +1,4 @@
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3.5-flash";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 function buildSystemPrompt() {
@@ -29,10 +29,22 @@ function buildUserPrompt(payload) {
     payload.qtype === "mixed"
       ? "객관식과 단답형을 섞어서 만드세요."
       : "모두 객관식(4지선다)으로 만드세요.";
-  return `주제: ${payload.topic}
-문제 개수: ${payload.count}개
-난이도: ${payload.difficulty}
-${typeInstruction}`;
+
+  const lines = [];
+  if (payload.topic) lines.push(`주제/지시사항: ${payload.topic}`);
+  lines.push(`문제 개수: ${payload.count}개`);
+  lines.push(`난이도: ${payload.difficulty}`);
+  lines.push(typeInstruction);
+
+  if (payload.file) {
+    if (payload.file.kind === "text") {
+      lines.push(`\n다음 자료의 내용을 바탕으로 문제를 출제하세요:\n"""\n${payload.file.text.slice(0, 20000)}\n"""`);
+    } else {
+      lines.push("\n첨부된 파일(문서)의 내용을 바탕으로 문제를 출제하세요.");
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function extractJson(text) {
@@ -43,6 +55,12 @@ function extractJson(text) {
 }
 
 async function generateQuestions(apiKey, payload) {
+  const parts = [];
+  if (payload.file && payload.file.kind === "inline") {
+    parts.push({ inline_data: { mime_type: payload.file.mimeType, data: payload.file.data } });
+  }
+  parts.push({ text: buildUserPrompt(payload) });
+
   const res = await fetch(API_URL, {
     method: "POST",
     headers: {
@@ -50,7 +68,7 @@ async function generateQuestions(apiKey, payload) {
       "x-goog-api-key": apiKey,
     },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: buildUserPrompt(payload) }] }],
+      contents: [{ parts }],
       systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
       generationConfig: { responseMimeType: "application/json" },
     }),

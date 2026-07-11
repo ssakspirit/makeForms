@@ -1,4 +1,6 @@
 const topicEl = document.getElementById("topic");
+const fileInputEl = document.getElementById("sourceFile");
+const fileHintEl = document.getElementById("fileHint");
 const countEl = document.getElementById("count");
 const difficultyEl = document.getElementById("difficulty");
 const qtypeEl = document.getElementById("qtype");
@@ -6,6 +8,33 @@ const markCorrectEl = document.getElementById("markCorrect");
 const generateBtn = document.getElementById("generate");
 const logEl = document.getElementById("log");
 const warningEl = document.getElementById("warning");
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+
+fileInputEl.addEventListener("change", () => {
+  const file = fileInputEl.files[0];
+  if (!file) {
+    fileHintEl.style.display = "none";
+    return;
+  }
+  fileHintEl.textContent = `${file.name} (${(file.size / 1024).toFixed(0)}KB)`;
+  fileHintEl.style.display = "block";
+});
+
+async function readFileAsPayload(file) {
+  const isText = /\.(txt|md)$/i.test(file.name) || file.type.startsWith("text/");
+  if (isText) {
+    return { kind: "text", text: await file.text() };
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("파일을 읽을 수 없습니다."));
+    reader.readAsDataURL(file);
+  });
+  const base64 = String(dataUrl).split(",")[1] || "";
+  return { kind: "inline", mimeType: file.type || "application/pdf", data: base64 };
+}
 
 document.getElementById("openOptions").addEventListener("click", (e) => {
   e.preventDefault();
@@ -47,8 +76,13 @@ init();
 
 generateBtn.addEventListener("click", async () => {
   const topic = topicEl.value.trim();
-  if (!topic) {
-    showWarning("주제를 입력하세요.");
+  const file = fileInputEl.files[0];
+  if (!topic && !file) {
+    showWarning("주제를 입력하거나 파일을 첨부하세요.");
+    return;
+  }
+  if (file && file.size > MAX_FILE_BYTES) {
+    showWarning(`파일이 너무 큽니다. 최대 ${MAX_FILE_BYTES / 1024 / 1024}MB까지 지원합니다.`);
     return;
   }
   warningEl.style.display = "none";
@@ -57,12 +91,19 @@ generateBtn.addEventListener("click", async () => {
   generateBtn.textContent = "생성 중...";
 
   try {
+    let filePayload = null;
+    if (file) {
+      log(`파일 읽는 중: ${file.name}`);
+      filePayload = await readFileAsPayload(file);
+    }
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const response = await chrome.runtime.sendMessage({
       action: "generateAndFill",
       tabId: tab.id,
       payload: {
         topic,
+        file: filePayload,
         count: Math.max(1, Math.min(20, Number(countEl.value) || 5)),
         difficulty: difficultyEl.value,
         qtype: qtypeEl.value,
