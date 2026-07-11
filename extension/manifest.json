@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "makeForms - AI 문제 자동 생성",
+  "version": "0.1.0",
+  "description": "Microsoft Forms 편집 화면에서 주제를 입력하면 AI가 문제를 생성해 자동으로 채워 넣습니다.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://forms.office.com/*",
+    "https://forms.microsoft.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "makeForms - AI 문제 자동 생성"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://forms.office.com/*", "https://forms.microsoft.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

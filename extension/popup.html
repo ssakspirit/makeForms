@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>makeForms</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", sans-serif; width: 320px; padding: 14px; color: #222; }
+  h1 { font-size: 15px; margin: 0 0 2px; }
+  p.sub { font-size: 11px; color: #888; margin: 0 0 12px; }
+  label { display: block; font-size: 12px; color: #555; margin: 10px 0 4px; }
+  input, select {
+    width: 100%; box-sizing: border-box; padding: 7px; font-size: 13px;
+    border: 1px solid #ccc; border-radius: 6px;
+  }
+  .row { display: flex; gap: 8px; }
+  .row > div { flex: 1; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+  .checkbox-row input { width: auto; }
+  .checkbox-row label { margin: 0; }
+  button#generate {
+    width: 100%; margin-top: 14px; padding: 10px; background: #6b4eff; color: #fff;
+    border: none; border-radius: 6px; font-size: 13px; cursor: pointer;
+  }
+  button#generate:disabled { background: #b9aef2; cursor: not-allowed; }
+  #log {
+    margin-top: 10px; max-height: 140px; overflow-y: auto; font-size: 11px;
+    background: #f6f6f8; border-radius: 6px; padding: 8px; display: none; white-space: pre-wrap;
+  }
+  #warning {
+    font-size: 11px; color: #b3261e; background: #fdecea; border-radius: 6px;
+    padding: 8px; margin-top: 10px; display: none;
+  }
+  a.opt-link { font-size: 11px; color: #6b4eff; text-decoration: none; }
+</style>
+</head>
+<body>
+  <h1>makeForms</h1>
+  <p class="sub">AI로 문제를 생성해 현재 열려 있는 Microsoft Forms에 자동으로 채워 넣습니다.</p>
+
+  <div id="warning"></div>
+
+  <label for="topic">주제</label>
+  <input type="text" id="topic" placeholder="예: 조선시대 역사, 자바스크립트 기초" />
+
+  <div class="row">
+    <div>
+      <label for="count">문제 개수</label>
+      <input type="number" id="count" min="1" max="20" value="5" />
+    </div>
+    <div>
+      <label for="difficulty">난이도</label>
+      <select id="difficulty">
+        <option value="쉬움">쉬움</option>
+        <option value="보통" selected>보통</option>
+        <option value="어려움">어려움</option>
+      </select>
+    </div>
+  </div>
+
+  <label for="qtype">문제 유형</label>
+  <select id="qtype">
+    <option value="choice">객관식 (4지선다)</option>
+    <option value="mixed">객관식 + 단답형 혼합 (실험적)</option>
+  </select>
+
+  <div class="checkbox-row">
+    <input type="checkbox" id="markCorrect" checked />
+    <label for="markCorrect">퀴즈 정답 자동 표시 (퀴즈 모드 폼인 경우)</label>
+  </div>
+
+  <button id="generate">AI로 문제 생성 후 자동 입력</button>
+
+  <div id="log"></div>
+
+  <p class="sub" style="margin-top:10px;">
+    <a class="opt-link" id="openOptions" href="#">API 키 설정</a>
+  </p>
+
+  <script src="popup.js"></script>
+</body>
+</html>
