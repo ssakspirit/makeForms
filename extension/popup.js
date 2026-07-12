@@ -5,6 +5,7 @@ const countEl = document.getElementById("count");
 const difficultyEl = document.getElementById("difficulty");
 const qtypeEl = document.getElementById("qtype");
 const markCorrectEl = document.getElementById("markCorrect");
+const markRequiredEl = document.getElementById("markRequired");
 const generateBtn = document.getElementById("generate");
 const logEl = document.getElementById("log");
 const warningEl = document.getElementById("warning");
@@ -55,6 +56,11 @@ function showWarning(text) {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "MAKEFORMS_LOG") {
     log(msg.text);
+  }
+  // 입력 단계에서는 페이지가 포커스를 가져야 하므로 팝업을 닫는다.
+  // 이후 진행 로그는 Forms 페이지 위 패널에 표시된다.
+  if (msg.type === "MAKEFORMS_CLOSE_POPUP") {
+    window.close();
   }
 });
 
@@ -108,6 +114,7 @@ generateBtn.addEventListener("click", async () => {
         difficulty: difficultyEl.value,
         qtype: qtypeEl.value,
         markCorrect: markCorrectEl.checked,
+        markRequired: markRequiredEl.checked,
       },
     });
     if (response && response.ok) {

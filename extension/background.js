@@ -1,6 +1,26 @@
 const MODEL = "gemini-3.5-flash";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
+// minItems/maxItems로 문제 개수를 강제한다. (프롬프트만으로는 모델이 적게 만들 때가 있음)
+function buildResponseSchema(count) {
+  return {
+    type: "ARRAY",
+    minItems: count,
+    maxItems: count,
+    items: {
+      type: "OBJECT",
+      properties: {
+        type: { type: "STRING", enum: ["choice", "text"] },
+        title: { type: "STRING" },
+        options: { type: "ARRAY", items: { type: "STRING" }, minItems: 3, maxItems: 4 },
+        correctIndex: { type: "INTEGER" },
+        answer: { type: "STRING" },
+      },
+      required: ["type", "title", "correctIndex"],
+    },
+  };
+}
+
 function buildSystemPrompt() {
   return `당신은 Microsoft Forms용 퀴즈 문제를 만드는 도우미입니다.
 반드시 아래 JSON 스키마를 따르는 JSON 배열만 출력하세요. 설명 문장이나 마크다운 코드펜스는 포함하지 마세요.
@@ -54,6 +74,17 @@ function extractJson(text) {
   return JSON.parse(jsonText);
 }
 
+async function sendToContentScript(tabId, message) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch (err) {
+    if (!/Receiving end does not exist/.test(err.message)) throw err;
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["page.js"], world: "MAIN" });
+    return await chrome.tabs.sendMessage(tabId, message);
+  }
+}
+
 async function generateQuestions(apiKey, payload) {
   const parts = [];
   if (payload.file && payload.file.kind === "inline") {
@@ -70,7 +101,12 @@ async function generateQuestions(apiKey, payload) {
     body: JSON.stringify({
       contents: [{ parts }],
       systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-      generationConfig: { responseMimeType: "application/json" },
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: buildResponseSchema(payload.count),
+        maxOutputTokens: 8192,
+        thinkingConfig: { thinkingLevel: "LOW" },
+      },
     }),
   });
 
@@ -80,8 +116,13 @@ async function generateQuestions(apiKey, payload) {
   }
 
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text;
   if (!text) throw new Error("API 응답에서 텍스트를 찾을 수 없습니다.");
+
+  if (candidate.finishReason === "MAX_TOKENS") {
+    throw new Error("응답이 토큰 한도를 초과해 중간에 잘렸습니다. 문제 개수를 줄이거나 더 작은 파일로 다시 시도하세요.");
+  }
 
   const questions = extractJson(text);
   if (!Array.isArray(questions) || questions.length === 0) {
@@ -101,17 +142,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      chrome.runtime.sendMessage({ type: "MAKEFORMS_LOG", text: "AI에게 문제 생성 요청 중..." });
+      chrome.runtime.sendMessage({ type: "MAKEFORMS_LOG", text: "AI에게 문제 생성 요청 중..." }).catch(() => {});
       const questions = await generateQuestions(geminiApiKey, message.payload);
       chrome.runtime.sendMessage({
         type: "MAKEFORMS_LOG",
         text: `${questions.length}개 문제 생성 완료. 폼에 입력을 시작합니다...`,
-      });
+      }).catch(() => {});
 
-      const result = await chrome.tabs.sendMessage(message.tabId, {
+      // 팝업이 열려 있으면 페이지가 포커스를 잃어 텍스트 입력(execCommand)이
+      // 동작하지 않으므로, 입력 시작 전에 팝업을 닫아 페이지에 포커스를 돌려준다.
+      // 이후 진행 로그는 페이지 위에 뜨는 패널(page.js)에 표시된다.
+      chrome.runtime.sendMessage({ type: "MAKEFORMS_CLOSE_POPUP" }).catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      const result = await sendToContentScript(message.tabId, {
         action: "insertQuestions",
         questions,
-        options: { markCorrect: message.payload.markCorrect },
+        options: { markCorrect: message.payload.markCorrect, markRequired: message.payload.markRequired },
       });
 
       sendResponse({ ok: true, inserted: result.inserted, failed: result.failed });

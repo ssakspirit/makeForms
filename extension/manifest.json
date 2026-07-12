@@ -22,6 +22,12 @@
       "matches": ["https://forms.office.com/*", "https://forms.microsoft.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://forms.office.com/*", "https://forms.microsoft.com/*"],
+      "js": ["page.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ]
 }
