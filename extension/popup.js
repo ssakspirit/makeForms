@@ -225,7 +225,7 @@ async function buildAiPayload() {
 
   const payload = {
     topic,
-    count: Math.max(1, Math.min(20, Number(countEl.value) || 5)),
+    count: Math.max(1, Math.min(25, Number(countEl.value) || 5)),
     difficulty: difficultyEl.value,
     qtype: qtypeEl.value,
   };

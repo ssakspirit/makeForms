@@ -116,7 +116,7 @@ async function generateQuestions(apiKey, payload) {
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: buildResponseSchema(payload.count),
-        maxOutputTokens: 8192,
+        maxOutputTokens: 10000,
         thinkingConfig: { thinkingLevel: "LOW" },
       },
     }),
