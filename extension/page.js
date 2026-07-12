@@ -17,12 +17,15 @@
     typeChoice: [/^선택\s*항목$/, /^choice$/i],
     typeText: [/^텍스트$/, /^text$/i],
     required: [/^필수$/, /^required$/i],
+    // 폼 제목 컨테이너를 클릭하면 열리는 편집기의 textbox (aria-label이 정확히 "양식 제목")
+    formTitleBox: [/^양식\s*제목$/, /^form\s*title$/i],
   };
 
   // data-automation-id는 Fluent UI가 UI 문구/언어와 무관하게 붙이는 안정적인 식별자라
   // aria-label 텍스트 매칭보다 우선 사용한다. MS Forms UI가 바뀌면 여기부터 확인.
   const AUTOMATION_IDS = {
     addQuestion: ["questionAdd"],
+    formTitle: ["formTitleContainer"],
   };
 
   function matchesAny(text, patterns) {
@@ -337,6 +340,25 @@
     }
   }
 
+  // 폼 제목 설정: 제목 컨테이너를 클릭해 편집기를 열고 입력한다.
+  // 편집 상태는 이후 다른 요소(질문 추가 버튼 등)를 클릭할 때 커밋된다.
+  async function setFormTitle(title) {
+    const container =
+      findByAutomationId(AUTOMATION_IDS.formTitle) ||
+      findClickable([/양식\s*제목/, /form\s*title/i], document.querySelector("main") || document);
+    if (!container) return false;
+    container.scrollIntoView({ block: "center" });
+    container.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    container.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    container.click();
+    const box = await waitFor(
+      () => getAllTextboxes().find((el) => matchesAny(accessibleName(el), PATTERNS.formTitleBox)),
+      { timeout: 3000 }
+    );
+    if (!box) return false;
+    return fillField(box, title);
+  }
+
   async function insertQuestions(questions, opts) {
     let inserted = 0;
     let failed = 0;
@@ -372,11 +394,16 @@
 
   window.addEventListener("message", (ev) => {
     if (ev.source !== window || !ev.data || ev.data.source !== "makeforms" || ev.data.type !== "INSERT") return;
-    const { questions, options, requestId } = ev.data;
+    const { questions, options, formTitle, requestId } = ev.data;
     window.focus();
-    insertQuestions(questions, options || {}).then((result) => {
+    (async () => {
+      if (formTitle) {
+        const ok = await setFormTitle(formTitle);
+        log(ok ? `폼 제목 입력 완료: "${formTitle}"` : `폼 제목 입력 실패: "${formTitle}"`);
+      }
+      const result = await insertQuestions(questions, options || {});
       log(`완료: ${result.inserted}개 입력, ${result.failed}개 실패`);
       window.postMessage({ source: "makeforms", type: "RESULT", requestId, result }, "*");
-    });
+    })();
   });
 })();

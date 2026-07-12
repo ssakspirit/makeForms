@@ -6,7 +6,13 @@
 window.addEventListener("message", (ev) => {
   if (ev.source !== window || !ev.data || ev.data.source !== "makeforms") return;
   if (ev.data.type === "LOG") {
-    chrome.runtime.sendMessage({ type: "MAKEFORMS_LOG", text: ev.data.text }).catch(() => {});
+    // 확장이 새로고침되면 이 스크립트는 고아가 되어 chrome.runtime 접근이
+    // 동기 예외("Extension context invalidated")를 던진다. 무해하므로 무시.
+    try {
+      chrome.runtime.sendMessage({ type: "MAKEFORMS_LOG", text: ev.data.text }).catch(() => {});
+    } catch (e) {
+      // 고아 스크립트: 새 content.js가 이미 중계를 담당하고 있다.
+    }
   }
 });
 
@@ -28,6 +34,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       type: "INSERT",
       requestId,
       questions: message.questions,
+      formTitle: message.formTitle || null,
       options: message.options || {},
     },
     "*"

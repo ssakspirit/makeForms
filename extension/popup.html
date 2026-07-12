@@ -17,6 +17,15 @@
   .checkbox-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
   .checkbox-row input { width: auto; }
   .checkbox-row label { margin: 0; }
+  .mode-row {
+    display: flex; margin-top: 4px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;
+  }
+  .mode-row label {
+    flex: 1; margin: 0; padding: 8px 0; text-align: center; font-size: 12px;
+    color: #555; cursor: pointer; background: #f4f4f6;
+  }
+  .mode-row input { display: none; }
+  .mode-row label:has(input:checked) { background: #6b4eff; color: #fff; font-weight: 600; }
   button#generate {
     width: 100%; margin-top: 14px; padding: 10px; background: #6b4eff; color: #fff;
     border: none; border-radius: 6px; font-size: 13px; cursor: pointer;
@@ -35,37 +44,59 @@
 </head>
 <body>
   <h1>makeForms</h1>
-  <p class="sub">AI로 문제를 생성해 현재 열려 있는 Microsoft Forms에 자동으로 채워 넣습니다.</p>
+  <p class="sub">문제를 만들어 현재 열려 있는 Microsoft Forms에 자동으로 채워 넣습니다.</p>
 
   <div id="warning"></div>
 
-  <label for="topic">주제 (파일 첨부 시 지시사항, 선택)</label>
-  <input type="text" id="topic" placeholder="예: 조선시대 역사, 자바스크립트 기초" />
-
-  <label for="sourceFile">파일에서 문제 생성 (선택, txt/md/pdf)</label>
-  <input type="file" id="sourceFile" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" />
-  <div id="fileHint" class="sub" style="margin-top:4px; display:none;"></div>
-
-  <div class="row">
-    <div>
-      <label for="count">문제 개수</label>
-      <input type="number" id="count" min="1" max="20" value="5" />
-    </div>
-    <div>
-      <label for="difficulty">난이도</label>
-      <select id="difficulty">
-        <option value="쉬움">쉬움</option>
-        <option value="보통" selected>보통</option>
-        <option value="어려움">어려움</option>
-      </select>
-    </div>
+  <div class="mode-row">
+    <label><input type="radio" name="mode" value="ai" checked />AI로 문제 생성</label>
+    <label><input type="radio" name="mode" value="csv" />CSV 그대로 입력</label>
   </div>
 
-  <label for="qtype">문제 유형</label>
-  <select id="qtype">
-    <option value="choice">객관식 (4지선다)</option>
-    <option value="mixed">객관식 + 단답형 혼합 (실험적)</option>
-  </select>
+  <div id="aiSection">
+    <label for="topic">주제 (파일 첨부 시 지시사항, 선택)</label>
+    <input type="text" id="topic" placeholder="예: 조선시대 역사, 자바스크립트 기초" />
+
+    <label for="sourceFile">파일에서 문제 생성 (선택, txt/md/pdf)</label>
+    <input type="file" id="sourceFile" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" />
+    <div id="fileHint" class="sub" style="margin-top:4px; display:none;"></div>
+
+    <div class="row">
+      <div>
+        <label for="count">문제 개수</label>
+        <input type="number" id="count" min="1" max="20" value="5" />
+      </div>
+      <div>
+        <label for="difficulty">난이도</label>
+        <select id="difficulty">
+          <option value="쉬움">쉬움</option>
+          <option value="보통" selected>보통</option>
+          <option value="어려움">어려움</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="qtype">문제 유형</label>
+    <select id="qtype">
+      <option value="choice">객관식 (4지선다)</option>
+      <option value="mixed">객관식 + 단답형 혼합 (실험적)</option>
+    </select>
+  </div>
+
+  <div id="csvSection" style="display:none;">
+    <label for="csvFile">CSV 파일 (Kahoot 템플릿 형식)</label>
+    <input type="file" id="csvFile" accept=".csv,text/csv" />
+    <div id="csvHint" class="sub" style="margin-top:4px; display:none;"></div>
+    <p class="sub" style="margin:6px 0 0;">
+      완성된 문항을 AI 없이 그대로 입력합니다. API 키가 필요 없습니다.<br />
+      형식: Question #, Question Text, Answer 1~4, Time Limit(무시), Correct Answer(s)
+    </p>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="shuffleOptions" checked />
+      <label for="shuffleOptions">보기 순서 무작위로 섞기 (정답 위치 자동 반영)</label>
+    </div>
+  </div>
 
   <div class="checkbox-row">
     <input type="checkbox" id="markCorrect" checked />
