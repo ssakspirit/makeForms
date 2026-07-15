@@ -187,7 +187,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         action: "insertQuestions",
         questions,
         formTitle,
-        options: { markCorrect: message.payload.markCorrect, markRequired: message.payload.markRequired },
+        options: {
+          markCorrect: message.payload.markCorrect,
+          markRequired: message.payload.markRequired,
+          markScore: message.payload.markScore,
+        },
       });
 
       sendResponse({ ok: true, inserted: result.inserted, failed: result.failed });

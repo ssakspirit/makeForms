@@ -285,6 +285,16 @@
     return true;
   }
 
+  // 편집 중인 카드 하단 설정 줄의 "점수" 입력란을 채운다. 네이티브 <input>이라
+  // RoosterJS 에디터와 달리 포커스 없이도 네이티브 setter로 안전하게 반영된다.
+  function setScore(titleEl, score) {
+    const root = refreshTitleEl(titleEl).closest('[aria-label*="디자이너"]') || document;
+    const input = Array.from(root.querySelectorAll("input")).find((el) => accessibleName(el) === "점수");
+    if (!input) return false;
+    setNativeInputValue(input, String(score));
+    return true;
+  }
+
   async function insertChoiceQuestion(question, opts) {
     let titleEl = await addQuestionCard(PATTERNS.typeChoice, "선택 항목");
     await sleep(200);
@@ -324,6 +334,11 @@
       const ok = await setRequired(titleEl);
       log(ok ? `  필수 설정 완료` : `  필수 설정 실패: 스위치를 찾지 못했습니다`);
     }
+
+    if (opts.markScore) {
+      const ok = setScore(titleEl, 1);
+      log(ok ? `  점수 설정 완료: 1점` : `  점수 설정 실패: 입력란을 찾지 못했습니다`);
+    }
   }
 
   async function insertTextQuestion(question, opts) {
@@ -334,6 +349,10 @@
     if (opts.markRequired) {
       const ok = await setRequired(titleEl);
       log(ok ? `  필수 설정 완료` : `  필수 설정 실패: 스위치를 찾지 못했습니다`);
+    }
+    if (opts.markScore) {
+      const ok = setScore(titleEl, 1);
+      log(ok ? `  점수 설정 완료: 1점` : `  점수 설정 실패: 입력란을 찾지 못했습니다`);
     }
     if (question.answer) {
       log(`  참고: 모범 답안("${question.answer}")은 자동으로 입력하지 않았습니다. 필요하면 수동으로 입력해주세요.`);

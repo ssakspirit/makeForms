@@ -9,6 +9,7 @@ const difficultyEl = document.getElementById("difficulty");
 const qtypeEl = document.getElementById("qtype");
 const markCorrectEl = document.getElementById("markCorrect");
 const markRequiredEl = document.getElementById("markRequired");
+const markScoreEl = document.getElementById("markScore");
 const generateBtn = document.getElementById("generate");
 const logEl = document.getElementById("log");
 const warningEl = document.getElementById("warning");
@@ -271,6 +272,7 @@ generateBtn.addEventListener("click", async () => {
     const payload = mode === "csv" ? await buildCsvPayload() : await buildAiPayload();
     payload.markCorrect = markCorrectEl.checked;
     payload.markRequired = markRequiredEl.checked;
+    payload.markScore = markScoreEl.checked;
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const response = await chrome.runtime.sendMessage({
