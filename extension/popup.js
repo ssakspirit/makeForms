@@ -98,7 +98,7 @@ function parseCsv(text) {
   return rows;
 }
 
-// Kahoot 가져오기 템플릿 형식을 문제 배열로 변환:
+// 블루킷 가져오기 템플릿 형식을 문제 배열로 변환:
 // Question #, Question Text, Answer 1~4, Time Limit(무시), Correct Answer(s)
 function csvToQuestions(text) {
   const rows = parseCsv(text);
@@ -129,7 +129,7 @@ function csvToQuestions(text) {
   return { questions, notes };
 }
 
-// Kahoot 템플릿은 정답이 항상 Answer 1이라 그대로 입력하면 모든 문항의
+// 블루킷 템플릿은 정답이 항상 Answer 1이라 그대로 입력하면 모든 문항의
 // 1번이 정답이 된다. 보기 순서를 무작위로 섞고 정답 위치를 따라간다.
 function shuffleQuestionOptions(question) {
   const indices = question.options.map((_, i) => i);
@@ -302,7 +302,7 @@ async function buildCsvPayload() {
   const { questions, notes } = csvToQuestions(await file.text());
   notes.forEach((n) => log(`  참고: ${n}`));
   if (questions.length === 0) {
-    throw new Error("CSV에서 문항을 찾지 못했습니다. 형식을 확인하세요 (Kahoot 템플릿).");
+    throw new Error("CSV에서 문항을 찾지 못했습니다. 형식을 확인하세요 (블루킷 템플릿).");
   }
 
   const shuffle = shuffleOptionsEl.checked;
