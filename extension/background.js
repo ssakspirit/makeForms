@@ -1,5 +1,10 @@
 const MODEL = "gemini-3.5-flash";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// 기본 모델이 혼잡(503)으로 계속 실패하면 이 모델로 넘어가서 이어서 재시도한다.
+const FALLBACK_MODEL = "gemini-flash-latest";
+
+function apiUrlFor(model) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+}
 
 // minItems/maxItems로 문제 개수를 강제한다. (프롬프트만으로는 모델이 적게 만들 때가 있음)
 function buildResponseSchema(count) {
@@ -97,6 +102,28 @@ async function sendToContentScript(tabId, message) {
   }
 }
 
+// 모델별 최대 시도 횟수. 기본 모델을 오래 붙잡고 있기보다, 혼잡이 계속되면
+// 대체 모델로 넘어가는 편이 전체 대기 시간을 줄인다.
+const RETRY_PLAN = [
+  { model: MODEL, retries: 4 },
+  { model: FALLBACK_MODEL, retries: 2 },
+];
+
+function parseGeminiResponse(res, errBody) {
+  if (!res.ok) {
+    throw new Error(`Gemini API 오류 (${res.status}): ${(errBody || "").slice(0, 200)}`);
+  }
+  return res.json().then((data) => {
+    const candidate = data.candidates?.[0];
+    const text = candidate?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("API 응답에서 텍스트를 찾을 수 없습니다.");
+    if (candidate.finishReason === "MAX_TOKENS") {
+      throw new Error("응답이 토큰 한도를 초과해 중간에 잘렸습니다. 문제 개수를 줄이거나 더 작은 파일로 다시 시도하세요.");
+    }
+    return extractJson(text);
+  });
+}
+
 async function callGemini(apiKey, systemPrompt, userPrompt, schema, filePart) {
   const parts = [];
   if (filePart) {
@@ -104,58 +131,60 @@ async function callGemini(apiKey, systemPrompt, userPrompt, schema, filePart) {
   }
   parts.push({ text: userPrompt });
 
-  let res;
-  let retries = 3;
-  let delay = 2000;
+  const requestBody = (schemaForModel) => JSON.stringify({
+    contents: [{ parts }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schemaForModel,
+      maxOutputTokens: 10000,
+      thinkingConfig: { thinkingLevel: "LOW" },
+    },
+  });
 
-  for (let i = 0; i < retries; i++) {
-    res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: schema,
-          maxOutputTokens: 10000,
-          thinkingConfig: { thinkingLevel: "LOW" },
+  for (let m = 0; m < RETRY_PLAN.length; m++) {
+    const { model, retries } = RETRY_PLAN[m];
+    let delay = 3000;
+
+    for (let i = 0; i < retries; i++) {
+      const res = await fetch(apiUrlFor(model), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": apiKey,
         },
-      }),
-    });
+        body: requestBody(schema),
+      });
 
-    if (res.status === 503 || res.status === 429) {
-      if (i < retries - 1) {
+      if (res.status !== 503 && res.status !== 429) {
+        const errBody = res.ok ? null : await res.text();
+        return parseGeminiResponse(res, errBody);
+      }
+
+      const isLastAttempt = i === retries - 1;
+      const isLastModel = m === RETRY_PLAN.length - 1;
+
+      if (isLastAttempt && isLastModel) {
+        const errBody = await res.text();
+        return parseGeminiResponse(res, errBody);
+      }
+
+      if (isLastAttempt) {
         chrome.runtime.sendMessage({
           type: "MAKEFORMS_LOG",
-          text: `AI 서버 혼잡(${res.status}). ${delay / 1000}초 후 재시도합니다... (${i + 1}/${retries})`
+          text: `"${model}" 모델이 계속 혼잡(${res.status})해서 "${RETRY_PLAN[m + 1].model}" 모델로 전환합니다...`,
         }).catch(() => {});
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2;
-        continue;
+        break;
       }
+
+      chrome.runtime.sendMessage({
+        type: "MAKEFORMS_LOG",
+        text: `AI 서버 혼잡(${res.status}). ${delay / 1000}초 후 재시도합니다... (${i + 1}/${retries})`,
+      }).catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, 20000);
     }
-    break;
   }
-
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Gemini API 오류 (${res.status}): ${errBody.slice(0, 200)}`);
-  }
-
-  const data = await res.json();
-  const candidate = data.candidates?.[0];
-  const text = candidate?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("API 응답에서 텍스트를 찾을 수 없습니다.");
-
-  if (candidate.finishReason === "MAX_TOKENS") {
-    throw new Error("응답이 토큰 한도를 초과해 중간에 잘렸습니다. 문제 개수를 줄이거나 더 작은 파일로 다시 시도하세요.");
-  }
-
-  return extractJson(text);
 }
 
 async function generateQuestions(apiKey, payload) {
