@@ -34,7 +34,13 @@ function applyMode() {
   aiSectionEl.style.display = mode === "ai" ? "block" : "none";
   docSectionEl.style.display = mode === "doc" ? "block" : "none";
   csvSectionEl.style.display = mode === "csv" ? "block" : "none";
-  
+
+  // 문서 모드는 자가진단/설문 위주라 정답 표시·점수 옵션이 대체로 의미가 없어 숨긴다.
+  const markCorrectRow = document.getElementById("markCorrectRow");
+  if (markCorrectRow) markCorrectRow.style.display = mode === "doc" ? "none" : "flex";
+  const markScoreRow = document.getElementById("markScoreRow");
+  if (markScoreRow) markScoreRow.style.display = mode === "doc" ? "none" : "flex";
+
   const labels = {
     ai: "AI로 문제 생성 후 자동 입력",
     doc: "문서 분석 후 자동 입력",

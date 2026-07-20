@@ -282,14 +282,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         chrome.runtime.sendMessage({
           type: "MAKEFORMS_LOG",
-          text: payload.mode === "doc" ? "AI에게 문서 분석 요청 중..." : "AI에게 문제 생성 요청 중...",
+          text: message.payload.mode === "doc" ? "AI에게 문서 분석 요청 중..." : "AI에게 문제 생성 요청 중...",
         }).catch(() => {});
 
         let generated;
-        if (payload.mode === "doc") {
-          generated = await parseDocument(geminiApiKey, payload);
+        if (message.payload.mode === "doc") {
+          generated = await parseDocument(geminiApiKey, message.payload);
         } else {
-          generated = await generateQuestions(geminiApiKey, payload);
+          generated = await generateQuestions(geminiApiKey, message.payload);
         }
         questions = generated.questions;
         formTitle = formTitle || generated.formTitle;
