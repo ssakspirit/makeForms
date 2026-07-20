@@ -23,8 +23,10 @@
 
   // data-automation-id는 Fluent UI가 UI 문구/언어와 무관하게 붙이는 안정적인 식별자라
   // aria-label 텍스트 매칭보다 우선 사용한다. MS Forms UI가 바뀌면 여기부터 확인.
+  // 주의: "questionAdd"는 질문이 0개인 폼에서는 "빠른 시작"(AI) 버튼을 가리키도록
+  // MS 쪽에서 재사용을 바꿔버려서 더 이상 안전하지 않다. addQuestion은
+  // aria-label 텍스트 패턴으로만 찾는다 (아래 clickAddQuestionButton 참고).
   const AUTOMATION_IDS = {
-    addQuestion: ["questionAdd"],
     formTitle: ["formTitleContainer"],
   };
 
@@ -163,7 +165,7 @@
   }
 
   async function clickAddQuestionButton() {
-    const btn = await waitFor(() => findByAutomationId(AUTOMATION_IDS.addQuestion) || findClickable(PATTERNS.addQuestion));
+    const btn = await waitFor(() => findClickable(PATTERNS.addQuestion));
     if (!btn) throw new Error('"새 질문 추가" 버튼을 찾을 수 없습니다.');
     // 폼이 길어질수록 버튼이 화면 밖에 있을 수 있어, 위치 기반으로 뜨는
     // 유형 선택 패널이 제대로 나타나도록 클릭 전에 화면 중앙으로 스크롤한다.
@@ -172,12 +174,18 @@
     btn.click();
   }
 
-  // "새 질문 추가" 클릭 시 유형 선택 패널(선택 항목/텍스트/평가/...)이 뜨므로,
-  // 원하는 유형 항목을 한 번 더 클릭해야 실제 질문 카드가 생성된다.
-  // 첫 클릭 직후엔 패널 렌더링 타이밍 때문에 유형 버튼을 못 찾을 때가 있어,
-  // 그 경우 "새 질문 추가"부터 한 번 더 시도한다.
+  // 질문이 하나도 없는 폼/퀴즈에서는 유형 버튼(선택 항목/텍스트/...)이
+  // "새 질문 추가" 버튼 없이 처음부터 노출돼 있다. 반면 질문이 1개 이상
+  // 있으면 유형 버튼이 접혀 있고, 목록 하단의 "새 질문 추가"를 눌러야
+  // 다시 펼쳐진다. 그래서 매번 클릭부터 하지 않고, 유형 버튼이 이미
+  // 보이면 그걸 바로 쓰고 없을 때만 "새 질문 추가"를 누른다.
   async function openQuestionTypePanel(patterns, label) {
     for (let attempt = 0; attempt < 2; attempt++) {
+      const visible = findClickable(patterns);
+      if (visible) {
+        visible.click();
+        return;
+      }
       await clickAddQuestionButton();
       const btn = await waitFor(() => findClickable(patterns), { timeout: 2500 });
       if (btn) {
