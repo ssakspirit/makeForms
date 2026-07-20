@@ -124,7 +124,13 @@ function parseGeminiResponse(res, errBody) {
   });
 }
 
-async function callGemini(apiKey, systemPrompt, userPrompt, schema, filePart) {
+// apiKeys: 문자열 하나 또는 [기본 키, 예비 키] 배열.
+// - 503(모델 혼잡)은 같은 키로 재시도하다가 안 되면 대체 모델로 넘어간다.
+// - 429(할당량 초과)는 모델을 바꿔도 같은 키/프로젝트라 소용없으므로,
+//   바로 다음 API 키로 넘어간다(있으면).
+async function callGemini(apiKeys, systemPrompt, userPrompt, schema, filePart) {
+  const keys = (Array.isArray(apiKeys) ? apiKeys : [apiKeys]).filter(Boolean);
+
   const parts = [];
   if (filePart) {
     parts.push({ inline_data: { mime_type: filePart.mimeType, data: filePart.data } });
@@ -142,55 +148,85 @@ async function callGemini(apiKey, systemPrompt, userPrompt, schema, filePart) {
     },
   });
 
-  for (let m = 0; m < RETRY_PLAN.length; m++) {
-    const { model, retries } = RETRY_PLAN[m];
-    let delay = 3000;
+  let quotaExceeded = false;
+  let lastRes = null;
+  let lastErrBody = "";
 
-    for (let i = 0; i < retries; i++) {
-      const res = await fetch(apiUrlFor(model), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: requestBody(schema),
-      });
+  keyLoop:
+  for (let k = 0; k < keys.length; k++) {
+    const apiKey = keys[k];
 
-      if (res.status !== 503 && res.status !== 429) {
-        const errBody = res.ok ? null : await res.text();
-        return parseGeminiResponse(res, errBody);
-      }
+    for (let m = 0; m < RETRY_PLAN.length; m++) {
+      const { model, retries } = RETRY_PLAN[m];
+      let delay = 3000;
 
-      const isLastAttempt = i === retries - 1;
-      const isLastModel = m === RETRY_PLAN.length - 1;
+      for (let i = 0; i < retries; i++) {
+        const res = await fetch(apiUrlFor(model), {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: requestBody(schema),
+        });
 
-      if (isLastAttempt && isLastModel) {
-        const errBody = await res.text();
-        return parseGeminiResponse(res, errBody);
-      }
+        if (res.status !== 503 && res.status !== 429) {
+          const errBody = res.ok ? null : await res.text();
+          return parseGeminiResponse(res, errBody);
+        }
 
-      if (isLastAttempt) {
+        lastRes = res;
+        lastErrBody = await res.text();
+
+        if (res.status === 429) {
+          quotaExceeded = true;
+          const hasMoreKeys = k < keys.length - 1;
+          chrome.runtime.sendMessage({
+            type: "MAKEFORMS_LOG",
+            text: hasMoreKeys
+              ? "API 키 할당량 초과(429). 예비 API 키로 전환합니다..."
+              : "API 키 할당량 초과(429).",
+          }).catch(() => {});
+          continue keyLoop;
+        }
+
+        const isLastAttempt = i === retries - 1;
+        const isLastModel = m === RETRY_PLAN.length - 1;
+
+        if (isLastAttempt && isLastModel) {
+          break;
+        }
+
+        if (isLastAttempt) {
+          chrome.runtime.sendMessage({
+            type: "MAKEFORMS_LOG",
+            text: `"${model}" 모델이 계속 혼잡(${res.status})해서 "${RETRY_PLAN[m + 1].model}" 모델로 전환합니다...`,
+          }).catch(() => {});
+          break;
+        }
+
         chrome.runtime.sendMessage({
           type: "MAKEFORMS_LOG",
-          text: `"${model}" 모델이 계속 혼잡(${res.status})해서 "${RETRY_PLAN[m + 1].model}" 모델로 전환합니다...`,
+          text: `AI 서버 혼잡(${res.status}). ${delay / 1000}초 후 재시도합니다... (${i + 1}/${retries})`,
         }).catch(() => {});
-        break;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(delay * 2, 20000);
       }
-
-      chrome.runtime.sendMessage({
-        type: "MAKEFORMS_LOG",
-        text: `AI 서버 혼잡(${res.status}). ${delay / 1000}초 후 재시도합니다... (${i + 1}/${retries})`,
-      }).catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      delay = Math.min(delay * 2, 20000);
     }
   }
+
+  if (quotaExceeded) {
+    throw new Error(
+      `Gemini API 할당량을 초과했습니다. 옵션 화면에서 예비 API 키를 등록하거나 잠시 후 다시 시도하세요. (${lastErrBody.slice(0, 150)})`
+    );
+  }
+  throw new Error(`Gemini API 오류 (${lastRes.status}): ${lastErrBody.slice(0, 200)}`);
 }
 
-async function generateQuestions(apiKey, payload) {
+async function generateQuestions(apiKeys, payload) {
   const filePart = payload.file?.kind === "inline" ? payload.file : null;
   const parsed = await callGemini(
-    apiKey,
+    apiKeys,
     buildSystemPrompt(),
     buildUserPrompt(payload),
     buildResponseSchema(payload.count),
@@ -271,10 +307,10 @@ function buildDocUserPrompt(payload) {
   return lines.join("\n");
 }
 
-async function parseDocument(apiKey, payload) {
+async function parseDocument(apiKeys, payload) {
   const filePart = payload.file?.kind === "inline" ? payload.file : null;
   const parsed = await callGemini(
-    apiKey,
+    apiKeys,
     buildDocSystemPrompt(),
     buildDocUserPrompt(payload),
     buildDocResponseSchema(),
@@ -303,11 +339,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           text: `CSV에서 ${questions.length}개 문항을 읽었습니다. 폼에 입력을 시작합니다...`,
         }).catch(() => {});
       } else {
-        const { geminiApiKey } = await chrome.storage.sync.get(["geminiApiKey"]);
+        const { geminiApiKey, geminiApiKeyBackup } = await chrome.storage.sync.get(["geminiApiKey", "geminiApiKeyBackup"]);
         if (!geminiApiKey) {
           sendResponse({ ok: false, error: "API 키가 설정되지 않았습니다." });
           return;
         }
+        const apiKeys = [geminiApiKey, geminiApiKeyBackup].filter(Boolean);
 
         chrome.runtime.sendMessage({
           type: "MAKEFORMS_LOG",
@@ -316,9 +353,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         let generated;
         if (message.payload.mode === "doc") {
-          generated = await parseDocument(geminiApiKey, message.payload);
+          generated = await parseDocument(apiKeys, message.payload);
         } else {
-          generated = await generateQuestions(geminiApiKey, message.payload);
+          generated = await generateQuestions(apiKeys, message.payload);
         }
         questions = generated.questions;
         formTitle = formTitle || generated.formTitle;

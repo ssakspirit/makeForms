@@ -25,12 +25,18 @@
   <h1>makeForms 설정</h1>
   <label for="apiKey">Gemini API 키</label>
   <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
+
+  <label for="apiKeyBackup">예비 Gemini API 키 (선택)</label>
+  <input type="password" id="apiKeyBackup" placeholder="AIza..." autocomplete="off" />
+
   <button id="save">저장</button>
   <div id="status"></div>
   <p class="hint">
     aistudio.google.com/apikey 에서 발급받은 Gemini API 키를 입력하세요.
     키는 chrome.storage.sync에 저장되어 로그인한 브라우저 계정을 통해 다른 기기와 자동 동기화됩니다.
-    문제 생성 요청 시에는 Google Gemini API로만 전송됩니다. 동기화 계정이 노출되면 이 키도 함께 노출될 수 있으니 신뢰할 수 있는 계정에서만 사용하세요.
+    문제 생성 요청 시에는 Google Gemini API로만 전송됩니다. 동기화 계정이 노출되면 이 키도 함께 노출될 수 있으니 신뢰할 수 있는 계정에서만 사용하세요.<br /><br />
+    예비 키는 다른 Google 계정으로 따로 발급받은 키를 넣으세요. 기본 키가 할당량 초과(429)로 막히면
+    자동으로 예비 키로 전환해 요청을 이어갑니다.
   </p>
   <script src="options.js"></script>
 </body>
