@@ -97,30 +97,49 @@ async function sendToContentScript(tabId, message) {
   }
 }
 
-async function generateQuestions(apiKey, payload) {
+async function callGemini(apiKey, systemPrompt, userPrompt, schema, filePart) {
   const parts = [];
-  if (payload.file && payload.file.kind === "inline") {
-    parts.push({ inline_data: { mime_type: payload.file.mimeType, data: payload.file.data } });
+  if (filePart) {
+    parts.push({ inline_data: { mime_type: filePart.mimeType, data: filePart.data } });
   }
-  parts.push({ text: buildUserPrompt(payload) });
+  parts.push({ text: userPrompt });
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: buildResponseSchema(payload.count),
-        maxOutputTokens: 10000,
-        thinkingConfig: { thinkingLevel: "LOW" },
+  let res;
+  let retries = 3;
+  let delay = 2000;
+
+  for (let i = 0; i < retries; i++) {
+    res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": apiKey,
       },
-    }),
-  });
+      body: JSON.stringify({
+        contents: [{ parts }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+          maxOutputTokens: 10000,
+          thinkingConfig: { thinkingLevel: "LOW" },
+        },
+      }),
+    });
+
+    if (res.status === 503 || res.status === 429) {
+      if (i < retries - 1) {
+        chrome.runtime.sendMessage({
+          type: "MAKEFORMS_LOG",
+          text: `AI 서버 혼잡(${res.status}). ${delay / 1000}초 후 재시도합니다... (${i + 1}/${retries})`
+        }).catch(() => {});
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+        continue;
+      }
+    }
+    break;
+  }
 
   if (!res.ok) {
     const errBody = await res.text();
@@ -136,14 +155,108 @@ async function generateQuestions(apiKey, payload) {
     throw new Error("응답이 토큰 한도를 초과해 중간에 잘렸습니다. 문제 개수를 줄이거나 더 작은 파일로 다시 시도하세요.");
   }
 
-  const parsed = extractJson(text);
-  // 구버전(배열)과 신버전(객체) 응답 모두 허용
+  return extractJson(text);
+}
+
+async function generateQuestions(apiKey, payload) {
+  const filePart = payload.file?.kind === "inline" ? payload.file : null;
+  const parsed = await callGemini(
+    apiKey,
+    buildSystemPrompt(),
+    buildUserPrompt(payload),
+    buildResponseSchema(payload.count),
+    filePart
+  );
+
   const questions = Array.isArray(parsed) ? parsed : parsed.questions;
   const formTitle = Array.isArray(parsed) ? null : parsed.formTitle || null;
   if (!Array.isArray(questions) || questions.length === 0) {
     throw new Error("생성된 문제 형식이 올바르지 않습니다.");
   }
   return { questions, formTitle };
+}
+
+function buildDocResponseSchema() {
+  return {
+    type: "OBJECT",
+    properties: {
+      formTitle: { type: "STRING" },
+      questions: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          properties: {
+            type: { type: "STRING", enum: ["choice", "text"] },
+            title: { type: "STRING" },
+            options: { type: "ARRAY", items: { type: "STRING" } },
+            correctIndex: { type: "INTEGER" },
+            answer: { type: "STRING" },
+          },
+          required: ["type", "title"],
+        },
+      },
+    },
+    required: ["formTitle", "questions"],
+  };
+}
+
+function buildDocSystemPrompt() {
+  return `당신은 문서를 분석하여 Microsoft Forms 양식 항목(JSON)으로 변환하는 도우미입니다.
+문서의 구조와 내용을 파악하여 적절한 폼 항목 타입을 결정하세요.
+
+지원하는 항목 타입:
+- "choice": 객관식 선택 (라디오 버튼). options 배열 필수.
+  - 퀴즈라면 correctIndex(0-based)로 정답 표시.
+  - 설문/자가진단이면 correctIndex 없이 선택지만 제공.
+- "text": 주관식/단답형 (텍스트 응답).
+
+출력 형식:
+{
+  "formTitle": "양식 제목",
+  "questions": [
+    { "type": "choice", "title": "질문 내용", "options": ["🟢 잘함", "🟡 보통", "🔴 노력이 필요해요"] },
+    { "type": "text", "title": "소감을 적어주세요" }
+  ]
+}
+
+규칙:
+- 리커트 척도(잘함/보통/노력 등)는 "choice"로 변환하세요.
+- 주관식 소감/의견란은 "text"로 변환하세요.
+- 평가표의 각 문항을 개별 질문으로 분리하세요.
+- 모든 텍스트는 한국어로 작성합니다.
+- 문서에 이름/날짜/학번 입력란이 있으면 "text" 타입으로 추가하세요.`;
+}
+
+function buildDocUserPrompt(payload) {
+  const lines = [];
+  if (payload.topic) lines.push(`추가 지시사항: ${payload.topic}`);
+
+  if (payload.file) {
+    if (payload.file.kind === "text") {
+      lines.push(`\n다음 문서를 Microsoft Forms 양식으로 변환하세요:\n"""\n${payload.file.text.slice(0, 30000)}\n"""`);
+    } else {
+      lines.push("\n첨부된 문서를 Microsoft Forms 양식으로 변환하세요.");
+    }
+  }
+
+  return lines.join("\n");
+}
+
+async function parseDocument(apiKey, payload) {
+  const filePart = payload.file?.kind === "inline" ? payload.file : null;
+  const parsed = await callGemini(
+    apiKey,
+    buildDocSystemPrompt(),
+    buildDocUserPrompt(payload),
+    buildDocResponseSchema(),
+    filePart
+  );
+
+  const questions = parsed.questions || parsed.items || [];
+  if (!Array.isArray(questions) || questions.length === 0) {
+    throw new Error("문서에서 양식 항목을 추출하지 못했습니다.");
+  }
+  return { questions, formTitle: parsed.formTitle || null };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -167,13 +280,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
-        chrome.runtime.sendMessage({ type: "MAKEFORMS_LOG", text: "AI에게 문제 생성 요청 중..." }).catch(() => {});
-        const generated = await generateQuestions(geminiApiKey, message.payload);
+        chrome.runtime.sendMessage({
+          type: "MAKEFORMS_LOG",
+          text: payload.mode === "doc" ? "AI에게 문서 분석 요청 중..." : "AI에게 문제 생성 요청 중...",
+        }).catch(() => {});
+
+        let generated;
+        if (payload.mode === "doc") {
+          generated = await parseDocument(geminiApiKey, payload);
+        } else {
+          generated = await generateQuestions(geminiApiKey, payload);
+        }
         questions = generated.questions;
         formTitle = formTitle || generated.formTitle;
         chrome.runtime.sendMessage({
           type: "MAKEFORMS_LOG",
-          text: `${questions.length}개 문제 생성 완료. 폼에 입력을 시작합니다...`,
+          text: `${questions.length}개 항목 생성 완료. 폼에 입력을 시작합니다...`,
         }).catch(() => {});
       }
 

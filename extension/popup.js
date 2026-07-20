@@ -14,7 +14,12 @@ const generateBtn = document.getElementById("generate");
 const logEl = document.getElementById("log");
 const warningEl = document.getElementById("warning");
 const aiSectionEl = document.getElementById("aiSection");
+const docSectionEl = document.getElementById("docSection");
 const csvSectionEl = document.getElementById("csvSection");
+
+const docFileEl = document.getElementById("docFile");
+const docHintEl = document.getElementById("docHint");
+const docTopicEl = document.getElementById("docTopic");
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
 
@@ -27,10 +32,18 @@ function currentMode() {
 function applyMode() {
   const mode = currentMode();
   aiSectionEl.style.display = mode === "ai" ? "block" : "none";
+  docSectionEl.style.display = mode === "doc" ? "block" : "none";
   csvSectionEl.style.display = mode === "csv" ? "block" : "none";
-  generateBtn.textContent = mode === "ai" ? "AI로 문제 생성 후 자동 입력" : "CSV 문항 자동 입력";
+  
+  const labels = {
+    ai: "AI로 문제 생성 후 자동 입력",
+    doc: "문서 분석 후 자동 입력",
+    csv: "CSV 문항 자동 입력",
+  };
+  generateBtn.textContent = labels[mode];
   warningEl.style.display = "none";
-  if (mode === "ai" && !hasApiKey) {
+
+  if ((mode === "ai" || mode === "doc") && !hasApiKey) {
     showWarning('API 키가 없습니다. 아래 "API 키 설정"에서 등록하세요.');
   }
 }
@@ -138,6 +151,16 @@ fileInputEl.addEventListener("change", () => {
   fileHintEl.style.display = "block";
 });
 
+docFileEl.addEventListener("change", () => {
+  const file = docFileEl.files[0];
+  if (!file) {
+    docHintEl.style.display = "none";
+    return;
+  }
+  docHintEl.textContent = `${file.name} (${(file.size / 1024).toFixed(0)}KB)`;
+  docHintEl.style.display = "block";
+});
+
 csvInputEl.addEventListener("change", async () => {
   const file = csvInputEl.files[0];
   if (!file) {
@@ -225,6 +248,7 @@ async function buildAiPayload() {
   }
 
   const payload = {
+    mode: "ai",
     topic,
     count: Math.max(1, Math.min(25, Number(countEl.value) || 5)),
     difficulty: difficultyEl.value,
@@ -234,6 +258,28 @@ async function buildAiPayload() {
     log(`파일 읽는 중: ${file.name}`);
     payload.file = await readFileAsPayload(file);
   }
+  return payload;
+}
+
+async function buildDocPayload() {
+  const file = docFileEl.files[0];
+  if (!hasApiKey) {
+    throw new Error('API 키가 설정되지 않았습니다. "API 키 설정"에서 등록하세요.');
+  }
+  if (!file) {
+    throw new Error("문서 파일을 선택하세요.");
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    throw new Error(`파일이 너무 큽니다. 최대 ${MAX_FILE_BYTES / 1024 / 1024}MB까지 지원합니다.`);
+  }
+
+  log(`문서 읽는 중: ${file.name}`);
+  const payload = {
+    mode: "doc",
+    topic: docTopicEl.value.trim(),
+    file: await readFileAsPayload(file),
+    formTitle: file.name.replace(/\.[^.]+$/, ""),
+  };
   return payload;
 }
 
@@ -266,10 +312,14 @@ generateBtn.addEventListener("click", async () => {
   warningEl.style.display = "none";
   logEl.textContent = "";
   generateBtn.disabled = true;
-  generateBtn.textContent = mode === "ai" ? "생성 중..." : "입력 중...";
+  const loadingLabels = { ai: "생성 중...", doc: "분석 중...", csv: "입력 중..." };
+  generateBtn.textContent = loadingLabels[mode] || "실행 중...";
 
   try {
-    const payload = mode === "csv" ? await buildCsvPayload() : await buildAiPayload();
+    let payload;
+    if (mode === "ai") payload = await buildAiPayload();
+    else if (mode === "doc") payload = await buildDocPayload();
+    else payload = await buildCsvPayload();
     payload.markCorrect = markCorrectEl.checked;
     payload.markRequired = markRequiredEl.checked;
     payload.markScore = markScoreEl.checked;

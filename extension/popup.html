@@ -50,6 +50,7 @@
 
   <div class="mode-row">
     <label><input type="radio" name="mode" value="ai" checked />AI로 문제 생성</label>
+    <label><input type="radio" name="mode" value="doc" />문서에서 폼 생성</label>
     <label><input type="radio" name="mode" value="csv" />CSV 그대로 입력</label>
   </div>
 
@@ -81,6 +82,19 @@
       <option value="choice">객관식 (4지선다)</option>
       <option value="mixed">객관식 + 단답형 혼합 (실험적)</option>
     </select>
+  </div>
+
+  <div id="docSection" style="display:none;">
+    <label for="docFile">문서 파일 (md/txt/pdf)</label>
+    <input type="file" id="docFile" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" />
+    <div id="docHint" class="sub" style="margin-top:4px; display:none;"></div>
+    <p class="sub" style="margin:6px 0 0;">
+      마크다운·텍스트·PDF 문서를 AI가 분석하여 MS Forms 양식으로 변환합니다.<br />
+      (현재 스크립트 특성상 객관식/주관식 문항 위주로 지원됩니다.)
+    </p>
+
+    <label for="docTopic">추가 지시사항 (선택)</label>
+    <input type="text" id="docTopic" placeholder="예: 객관식 문항만 추출해주세요" />
   </div>
 
   <div id="csvSection" style="display:none;">
