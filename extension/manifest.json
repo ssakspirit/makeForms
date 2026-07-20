@@ -12,9 +12,13 @@
   "background": {
     "service_worker": "background.js"
   },
+  "icons": {
+    "128": "icon128.png"
+  },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "makeForms - AI 문제 자동 생성"
+    "default_title": "makeForms - AI 문제 자동 생성",
+    "default_icon": "icon128.png"
   },
   "options_page": "options.html",
   "content_scripts": [
